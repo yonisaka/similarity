@@ -6,17 +6,15 @@
     _ = os.Setenv("OPENAI_API_KEY", "test") // your API key
 ```
 
-### 2. Run *search_test* with your prompt and expected result
+### 2. Set your question and answer on
 
 
 ```go
-    answer, err := searchUsecase.Search(ctx, "stok nomor BA00001323K14 memiliki plat nomor apa?")
-    if err != nil {
-        log.Println(err)
-        assert.Error(t, err)
-        return
-    }
-    
-    assert.Contains(t, answer, "B1207KDZ")
-    log.Println(answer)
+    qna := make(map[string]string, 4)
+    qna["stok nomor BA00002123J16 dimiliki penjual apa?"] = "Yuliana adec "
+    qna["stok nomor BA00001323K14 memiliki plat nomor apa?"] = "B1207KDZ"
+    qna["mobil dengan plat nomor F1088DA memiliki warna apa?"] = "Hitam Metalic"
+    qna["mobil dengan plat nomor B1690PRD memiliki harga awal berapa?"] = "62000000"
 ```
+
+### 3. Run *search_test*

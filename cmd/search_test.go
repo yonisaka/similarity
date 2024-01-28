@@ -35,7 +35,7 @@ func TestSearch(t *testing.T) {
 	searchUsecase := usecases.NewSearchUsecase(client)
 	ctx := context.Background()
 
-	qna := make(map[string]string, 3)
+	qna := make(map[string]string, 4)
 	qna["stok nomor BA00002123J16 dimiliki penjual apa?"] = "Yuliana adec "
 	qna["stok nomor BA00001323K14 memiliki plat nomor apa?"] = "B1207KDZ"
 	qna["mobil dengan plat nomor F1088DA memiliki warna apa?"] = "Hitam Metalic"

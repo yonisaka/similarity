@@ -1,0 +1,104 @@
+version: '3.7'
+services:
+  # similarity-api
+  similarity-api:
+    image: golang:1.19
+    expose:
+      - "8080:8080" # gRPC
+      - "8081:8081" # HTTP
+    tty: true
+    restart: always
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      APP_ENV: dev
+      SERVER_PORT: 8080
+      POSTGRES_USER_MASTER: test
+      POSTGRES_PASSWORD_MASTER: test
+      POSTGRES_HOST_MASTER: timescaledb-master
+      POSTGRES_PORT_MASTER: 5432
+      POSTGRES_DB_MASTER: test
+      POSTGRES_USER_SLAVE: test
+      POSTGRES_PASSWORD_SLAVE: test
+      POSTGRES_HOST_SLAVE: timescaledb-slave
+      POSTGRES_PORT_SLAVE: 5433
+      POSTGRES_DB_SLAVE: test
+      IS_REPLICA: true
+      OTEL_AGENT: http://jaeger:14268/api/traces
+      REDIS_HOST: redis:6379
+    volumes:
+      - ..:/app
+    working_dir: /app
+    command: |
+      go run ./cmd/main.go
+    depends_on:
+      - timescaledb-master
+      - timescaledb-slave
+    networks:
+      - fullstack
+  # timescaledb-master
+  timescaledb-master:
+    image: timescale/timescaledb:latest-pg14
+    restart: always
+    command: -c 'config_file=/etc/postgresql/postgresql.conf' -c 'hba_file=/etc/postgresql/pg_hba.conf'
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    volumes:
+      - ./primary/data:/var/lib/postgresql/data
+      - ./primary/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./primary/init.sh:/docker-entrypoint-initdb.d/init.sh
+    networks:
+      - fullstack
+  # timescaledb-slave
+  timescaledb-slave:
+    image: timescale/timescaledb:latest-pg14
+    restart: always
+    entrypoint: /entrypoint.sh
+    ports:
+      - "5433:5433"
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    volumes:
+      - ./replica/data:/var/lib/postgresql/data
+      - ./replica/entrypoint.sh:/entrypoint.sh
+      - ./replica/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./replica/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    depends_on:
+      - timescaledb-master
+    networks:
+      - fullstack
+  # pgadmin
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - timescaledb-master
+    networks:
+      - fullstack
+  # migration
+  migration:
+    image: migrate/migrate:v4.15.2
+    restart: always
+    volumes:
+      - ../migrations:/migrations
+    command: [ "-path", "/migrations", "-database", "postgres://test:test@timescaledb-master:5432/test?sslmode=disable", "up"]
+    depends_on:
+      - timescaledb-master
+    networks:
+      - fullstack
+networks:
+  fullstack:
+    driver: bridge

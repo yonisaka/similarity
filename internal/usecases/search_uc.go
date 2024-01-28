@@ -4,14 +4,16 @@ import (
 	"context"
 	"github.com/sashabaranov/go-openai"
 	"github.com/yonisaka/similarity/internal/entities"
+	"github.com/yonisaka/similarity/internal/entities/repository"
 )
 
 type searchUsecase struct {
-	client *openai.Client
+	client        openai.Client
+	embeddingRepo repository.EmbeddingRepo
 }
 
-func NewSearchUsecase(client *openai.Client) SearchUsecase {
-	return &searchUsecase{client: client}
+func NewSearchUsecase(client openai.Client, embeddingRepo repository.EmbeddingRepo) SearchUsecase {
+	return &searchUsecase{client: client, embeddingRepo: embeddingRepo}
 }
 
 type SearchUsecase interface {
@@ -22,5 +24,5 @@ type SearchUsecase interface {
 	NumTokens(text string) int
 	QueryMessage(query string, records []entities.StringAndRelatedness, tokenBudget int) string
 	Ask(ctx context.Context, query string, records []entities.StringAndRelatedness, tokenBudget int) (string, error)
-	LoadDataSources(path string) ([]entities.Record, error)
+	LoadJSONDataSources(path string) ([]entities.Record, error)
 }

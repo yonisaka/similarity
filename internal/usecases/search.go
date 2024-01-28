@@ -20,22 +20,24 @@ const (
 	openaiModel  = "gpt-3.5-turbo"
 	roleUser     = "user"
 	filepath     = "../data/sample_data.json"
+	topN         = 10
+	tokenBudget  = 1000
 	introduction = "Use the below sample data to answer the subsequent question. If the answer cannot be found in the data source, write \"I could not find an answer.\""
 )
 
 func (u *searchUsecase) Search(ctx context.Context, query string) (string, error) {
-	records, err := u.LoadDataSources(filepath)
+	records, err := u.LoadJSONDataSources(filepath)
 	if err != nil {
 		return "", err
 	}
 
-	recordsAndRelatedness, err := u.StringsRankedByRelatedness(query, records, 10)
+	recordsAndRelatedness, err := u.StringsRankedByRelatedness(query, records, topN)
 	if err != nil {
 		return "", err
 	}
 
 	// Ask a question using the top N strings
-	answer, err := u.Ask(ctx, query, recordsAndRelatedness, 1000) // Adjust the token budget as needed
+	answer, err := u.Ask(ctx, query, recordsAndRelatedness, tokenBudget) // Adjust the token budget as needed
 	if err != nil {
 		return "", err
 	}
@@ -43,7 +45,7 @@ func (u *searchUsecase) Search(ctx context.Context, query string) (string, error
 	return answer, nil
 }
 
-func (u *searchUsecase) LoadDataSources(filepath string) ([]entities.Record, error) {
+func (u *searchUsecase) LoadJSONDataSources(filepath string) ([]entities.Record, error) {
 	// Load and parse JSON data
 	file, err := os.Open(filepath) // Adjust the path to your JSON file
 	if err != nil {

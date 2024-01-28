@@ -34,13 +34,26 @@ func TestSearch(t *testing.T) {
 
 	searchUsecase := usecases.NewSearchUsecase(client)
 	ctx := context.Background()
-	answer, err := searchUsecase.Search(ctx, "stok nomor BA00001323K14 memiliki plat nomor apa?")
-	if err != nil {
-		log.Println(err)
-		assert.Error(t, err)
-		return
-	}
 
-	assert.Contains(t, answer, "B1207KDZ")
-	log.Println(answer)
+	qna := make(map[string]string, 3)
+	qna["stok nomor BA00002123J16 dimiliki penjual apa?"] = "Yuliana adec "
+	qna["stok nomor BA00001323K14 memiliki plat nomor apa?"] = "B1207KDZ"
+	qna["mobil dengan plat nomor F1088DA memiliki warna apa?"] = "Hitam Metalic"
+	qna["mobil dengan plat nomor B1690PRD memiliki harga awal berapa?"] = "62000000"
+
+	for question, expectedAnswerContains := range qna {
+		result, err := searchUsecase.Search(ctx, question)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		log.Println(
+			fmt.Sprintf(
+				"question: %s \n answer: %s \n expected: %s \n", question, result, expectedAnswerContains,
+			),
+		)
+
+		assert.Contains(t, result, expectedAnswerContains)
+	}
 }

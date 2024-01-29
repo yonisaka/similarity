@@ -7,6 +7,7 @@ import (
 
 // Embedding is an embedding entity.
 type Embedding struct {
+	ID        uint       `json:"id"`
 	Scope     string     `json:"scope"`
 	Combined  string     `json:"combined"`
 	Embedding []float64  `json:"embedding"`
@@ -16,4 +17,5 @@ type Embedding struct {
 
 type EmbeddingRepo interface {
 	ListEmbeddingByScope(ctx context.Context, scope string) ([]Embedding, error)
+	CreateEmbedding(ctx context.Context, embedding *Embedding) error
 }

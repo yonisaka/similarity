@@ -1,3 +1,7 @@
 # development data
 development/primary/data
 development/replica/data
+qdrant_storage
+
+# test credentials
+cmd/main_test.go

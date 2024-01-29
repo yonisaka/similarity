@@ -4,36 +4,53 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/sashabaranov/go-openai"
 	"github.com/yonisaka/similarity/internal/entities"
+	"github.com/yonisaka/similarity/internal/entities/repository"
 	"io/ioutil"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 const (
-	embeddingURL = "https://api.openai.com/v1/embeddings"
-	openaiModel  = "gpt-3.5-turbo"
-	roleUser     = "user"
-	filepath     = "../data/sample_data.json"
-	topN         = 10
-	tokenBudget  = 1000
-	introduction = "Use the below sample data to answer the subsequent question. If the answer cannot be found in the data source, write \"I could not find an answer.\""
+	embeddingURL         = "https://api.openai.com/v1/embeddings"
+	openaiModel          = "gpt-3.5-turbo"
+	textEmbeddingAda     = "text-embedding-ada-002"
+	textEmbedding3Small  = "text-embedding-3-small"
+	roleUser             = "user"
+	filepath             = "../data/sample_data.json"
+	similarityQdrant     = "qdrant"
+	similarityPostgresql = "postgresql"
+	topN                 = 5
+	tokenBudget          = 1000
+	introduction         = "Use the below sample data to answer the subsequent question. If the answer cannot be found in the data source, write \"I could not find an answer.\""
 )
 
 func (u *searchUsecase) Search(ctx context.Context, query string) (string, error) {
-	records, err := u.LoadJSONDataSources(filepath)
-	if err != nil {
-		return "", err
-	}
+	var recordsAndRelatedness []entities.StringAndRelatedness
+	var err error
 
-	recordsAndRelatedness, err := u.StringsRankedByRelatedness(query, records, topN)
-	if err != nil {
-		return "", err
+	if os.Getenv("SIMILARITY_METHOD") == similarityQdrant {
+		recordsAndRelatedness, err = u.QdrantSearch(ctx, query)
+		if err != nil {
+			return "", err
+		}
+	} else if os.Getenv("SIMILARITY_METHOD") == similarityPostgresql {
+		records, err := u.embeddingRepo.ListEmbeddingByScope(ctx, "sample_lelang.csv")
+		if err != nil {
+			return "", err
+		}
+
+		recordsAndRelatedness, err = u.StringsRankedByRelatedness(query, records, topN)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// Ask a question using the top N strings
@@ -45,7 +62,7 @@ func (u *searchUsecase) Search(ctx context.Context, query string) (string, error
 	return answer, nil
 }
 
-func (u *searchUsecase) LoadJSONDataSources(filepath string) ([]entities.Record, error) {
+func (u *searchUsecase) LoadJSONDataSources(filepath string) ([]repository.Embedding, error) {
 	// Load and parse JSON data
 	file, err := os.Open(filepath) // Adjust the path to your JSON file
 	if err != nil {
@@ -53,7 +70,7 @@ func (u *searchUsecase) LoadJSONDataSources(filepath string) ([]entities.Record,
 	}
 	defer file.Close()
 
-	var records []entities.Record
+	var records []repository.Embedding
 	if err := json.NewDecoder(file).Decode(&records); err != nil {
 		return nil, err
 	}
@@ -61,21 +78,11 @@ func (u *searchUsecase) LoadJSONDataSources(filepath string) ([]entities.Record,
 	return records, nil
 }
 
-func (u *searchUsecase) CosineSimilarity(vecA, vecB []float64) float64 {
-	var dotProduct float64
-	var normA, normB float64
-	for i, val := range vecA {
-		dotProduct += val * vecB[i]
-		normA += val * val
-		normB += vecB[i] * vecB[i]
-	}
-	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
-}
-
 func (u *searchUsecase) EmbeddingQuery(query string) ([]float64, error) {
 	// Construct the request body
 	requestBody, err := json.Marshal(map[string]string{
 		"input": query,
+		"model": textEmbedding3Small,
 	})
 	if err != nil {
 		log.Fatalf("Error occurred while marshaling. %s", err)
@@ -88,7 +95,7 @@ func (u *searchUsecase) EmbeddingQuery(query string) ([]float64, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", os.Getenv("OPENAI_API_KEY"))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
 
 	// Make the request
 	client := &http.Client{}
@@ -105,7 +112,7 @@ func (u *searchUsecase) EmbeddingQuery(query string) ([]float64, error) {
 	}
 
 	// Unmarshal the response into the EmbeddingResponse struct
-	var embeddingResponse entities.EmbeddingResponse
+	var embeddingResponse *entities.EmbeddingResponse
 	if err := json.Unmarshal(body, &embeddingResponse); err != nil {
 		return nil, err
 	}
@@ -115,11 +122,20 @@ func (u *searchUsecase) EmbeddingQuery(query string) ([]float64, error) {
 		return embeddingResponse.Data[0].Embedding, nil
 	}
 
+	var errorResponse *entities.ErrorResponse
+	if err := json.Unmarshal(body, &errorResponse); err != nil {
+		return nil, err
+	}
+
+	if errorResponse != nil {
+		return nil, errors.New(errorResponse.Error.Message)
+	}
+
 	return nil, nil
 }
 
 // StringsRankedByRelatedness finds strings ranked by their relatedness to a query.
-func (u *searchUsecase) StringsRankedByRelatedness(query string, records []entities.Record, topN int) ([]entities.StringAndRelatedness, error) {
+func (u *searchUsecase) StringsRankedByRelatedness(query string, records []repository.Embedding, topN int) ([]entities.StringAndRelatedness, error) {
 	queryEmbedding, err := u.EmbeddingQuery(query)
 	if err != nil {
 		return nil, err
@@ -127,8 +143,15 @@ func (u *searchUsecase) StringsRankedByRelatedness(query string, records []entit
 
 	results := make([]entities.StringAndRelatedness, 0, len(records))
 	for _, record := range records {
-		relatedness := u.CosineSimilarity(queryEmbedding, record.Embedding)
-		results = append(results, entities.StringAndRelatedness{Text: record.Combined, Relatedness: relatedness})
+		relatedness, err := cosineSimilarity(queryEmbedding, record.Embedding)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, entities.StringAndRelatedness{
+			ID:          record.ID,
+			Text:        record.Combined,
+			Relatedness: relatedness,
+		})
 	}
 
 	sort.Slice(results, func(i, j int) bool {
@@ -139,7 +162,59 @@ func (u *searchUsecase) StringsRankedByRelatedness(query string, records []entit
 		topN = len(results)
 	}
 
+	for _, result := range results[:topN] {
+		fmt.Println(fmt.Sprintf("record id: %d relatedness: %f", result.ID, result.Relatedness))
+	}
+
 	return results[:topN], nil
+}
+
+func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entities.StringAndRelatedness, error) {
+	queryEmbedding, err := u.EmbeddingQuery(query)
+	if err != nil {
+		return nil, err
+	}
+
+	points, err := u.qdrantClient.Search(ctx, convertToFloat32(queryEmbedding))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(points) == 0 {
+		return nil, errors.New("no result found")
+	}
+
+	results := make([]entities.StringAndRelatedness, 0, len(points))
+	for _, point := range points {
+		results = append(results, entities.StringAndRelatedness{
+			Text:        point.Payload["combined"].GetStringValue(),
+			Relatedness: float64(point.Score),
+		})
+
+		fmt.Println(fmt.Sprintf("record id: %s relatedness: %f", point.Id.GetUuid(), point.Score))
+	}
+
+	usingScroll, err := strconv.ParseBool(os.Getenv("QDRANT_SCROLL"))
+	if err != nil {
+		return nil, err
+	}
+
+	if usingScroll {
+		scrolls, err := u.qdrantClient.Scroll(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, scroll := range scrolls {
+			results = append(results, entities.StringAndRelatedness{
+				Text: scroll.Payload["combined"].GetStringValue(),
+			})
+
+			fmt.Println(fmt.Sprintf("record id: %s ", scroll.Id.GetUuid()))
+		}
+	}
+
+	return results, nil
 }
 
 // NumTokens approximates the number of tokens in a string.

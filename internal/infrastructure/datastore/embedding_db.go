@@ -3,7 +3,10 @@ package datastore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/yonisaka/similarity/internal/entities/repository"
+	"strconv"
+	"strings"
 )
 
 var (
@@ -23,7 +26,7 @@ func NewEmbeddingRepo(base *BaseRepo) repository.EmbeddingRepo {
 }
 
 func (r *embeddingRepo) ListEmbeddingByScope(ctx context.Context, scope string) ([]repository.Embedding, error) {
-	query := `SELECT combined, translate(embeddings, '[]', '{}')::float[], n_tokens, created_at
+	query := `SELECT id, combined, translate(embeddings, '[]', '{}')::float[], n_tokens, created_at
 				FROM embeddings
 					WHERE scope = $1 `
 
@@ -34,13 +37,37 @@ func (r *embeddingRepo) ListEmbeddingByScope(ctx context.Context, scope string) 
 	defer rows.Close()
 
 	var embeddings []repository.Embedding
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	for rows.Next() {
 		var embedding repository.Embedding
-		if err := rows.Scan(&embedding.Combined, &embedding.Embedding, &embedding.NTokens, &embedding.CreatedAt); err != nil {
+		if err := rows.Scan(&embedding.ID, &embedding.Combined, &embedding.Embedding, &embedding.NTokens, &embedding.CreatedAt); err != nil {
 			return nil, err
 		}
 		embeddings = append(embeddings, embedding)
 	}
 
 	return embeddings, nil
+}
+
+func (r *embeddingRepo) CreateEmbedding(ctx context.Context, embedding *repository.Embedding) error {
+	query := `INSERT INTO embeddings(scope, combined, embeddings, n_tokens, created_at)
+				VALUES($1, $2, $3, $4, NOW())`
+
+	if _, err := r.dbMaster.Exec(ctx, query, embedding.Scope, embedding.Combined, floatArrayToString(embedding.Embedding, ", "), embedding.NTokens); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func floatArrayToString(arr []float64, delimiter string) string {
+	var strArr []string
+	for _, num := range arr {
+		strArr = append(strArr, strconv.FormatFloat(num, 'f', -1, 64))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(strArr, delimiter))
 }

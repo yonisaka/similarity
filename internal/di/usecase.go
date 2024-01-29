@@ -6,6 +6,16 @@ import "github.com/yonisaka/similarity/internal/usecases"
 func GetSearchUsecase() usecases.SearchUsecase {
 	return usecases.NewSearchUsecase(
 		GetOpenAIClient(),
+		GetQdrantClient(),
+		GetEmbeddingRepo(),
+	)
+}
+
+// GetImportUsecase returns ImportUsecase instance.
+func GetImportUsecase() usecases.ImportUsecase {
+	return usecases.NewImportUsecase(
+		GetOpenAIClient(),
+		GetQdrantClient(),
 		GetEmbeddingRepo(),
 	)
 }

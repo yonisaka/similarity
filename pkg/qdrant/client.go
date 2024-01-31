@@ -2,6 +2,7 @@ package qdrant
 
 import (
 	"context"
+	"golang.org/x/sync/errgroup"
 	"log"
 	"strconv"
 	"strings"
@@ -18,9 +19,13 @@ const (
 )
 
 type QdrantClient struct {
-	grpcConn   *grpc.ClientConn
-	collection string
-	size       uint64
+	grpcConn        *grpc.ClientConn
+	collection      string
+	size            uint64
+	memmapThreshold uint64
+	hnswOndisk      bool
+	hnswM           uint64
+	hnswEFConstruct uint64
 }
 
 func (qc *QdrantClient) Close() {
@@ -31,13 +36,21 @@ func (qc *QdrantClient) Collection() pb.CollectionsClient {
 	return pb.NewCollectionsClient(qc.grpcConn)
 }
 
-func NewQdrantClient(qdrantAddr, collection string, size uint64) *QdrantClient {
+func NewQdrantClient(qdrantAddr, collection string, size, memmapThreshold uint64, hnswOndisk bool, hnswM, hnswEFConstruct uint64) *QdrantClient {
 	conn, err := grpc.Dial(qdrantAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		logger.Fatalw("did not connect", "err", err)
 	}
-	return &QdrantClient{grpcConn: conn, collection: collection, size: size}
+	return &QdrantClient{
+		grpcConn:        conn,
+		collection:      collection,
+		size:            size,
+		memmapThreshold: memmapThreshold,
+		hnswOndisk:      hnswOndisk,
+		hnswM:           hnswM,
+		hnswEFConstruct: hnswEFConstruct,
+	}
 }
 
 func toPayload(payload map[string]string) map[string]*pb.Value {
@@ -66,6 +79,9 @@ func (qc *QdrantClient) DeleteCollection(name string) error {
 
 func (qc *QdrantClient) CreateCollection(name string, size uint64) error {
 	cc := pb.NewCollectionsClient(qc.grpcConn)
+
+	quantizationAlwaysRam := true
+	//quantizationQuantile := float32(0.99)
 	req := &pb.CreateCollection{
 		CollectionName: name,
 		VectorsConfig: &pb.VectorsConfig{
@@ -73,6 +89,21 @@ func (qc *QdrantClient) CreateCollection(name string, size uint64) error {
 				Params: &pb.VectorParams{
 					Size:     size,
 					Distance: pb.Distance_Cosine,
+				},
+			},
+		},
+		OptimizersConfig: &pb.OptimizersConfigDiff{
+			MemmapThreshold: &qc.memmapThreshold,
+		},
+		HnswConfig: &pb.HnswConfigDiff{
+			OnDisk:      &qc.hnswOndisk,
+			M:           &qc.hnswM,
+			EfConstruct: &qc.hnswEFConstruct,
+		},
+		QuantizationConfig: &pb.QuantizationConfig{
+			Quantization: &pb.QuantizationConfig_Binary{
+				Binary: &pb.BinaryQuantization{
+					AlwaysRam: &quantizationAlwaysRam,
 				},
 			},
 		},
@@ -152,7 +183,7 @@ func (qc *QdrantClient) Search(ctx context.Context, vector []float32) ([]*pb.Sco
 	searchResponse, err := sc.Search(ctx, &pb.SearchPoints{
 		CollectionName: qc.collection,
 		Vector:         vector,
-		Limit:          5,
+		Limit:          3,
 		Offset:         &offset,
 		WithPayload: &pb.WithPayloadSelector{
 			SelectorOptions: &pb.WithPayloadSelector_Include{
@@ -225,4 +256,66 @@ func (qc *QdrantClient) Scroll(ctx context.Context, query string) ([]*pb.Retriev
 	}
 
 	return scrollResponse.Result, nil
+}
+
+func (qc *QdrantClient) MultiScroll(ctx context.Context, query string) ([]*pb.RetrievedPoint, error) {
+	sc := pb.NewPointsClient(qc.grpcConn)
+
+	limit := uint32(1)
+	var scroll []*pb.RetrievedPoint
+	group, _ := errgroup.WithContext(ctx)
+
+	for _, v := range strings.Split(query, " ") {
+		v := v
+		group.Go(func() error {
+			mustMatch := []*pb.Condition{
+				{
+					ConditionOneOf: &pb.Condition_Field{
+						Field: &pb.FieldCondition{
+							Key: "raw",
+							Match: &pb.Match{
+								MatchValue: &pb.Match_Text{
+									Text: v,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			response, err := sc.Scroll(ctx, &pb.ScrollPoints{
+				CollectionName: qc.collection,
+				Limit:          &limit,
+				Filter: &pb.Filter{
+					Must: mustMatch,
+				},
+			})
+			if err != nil {
+				return err
+			}
+
+			if len(response.Result) > 0 {
+				scroll = append(scroll, response.Result[0])
+			}
+
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+
+	var result []*pb.RetrievedPoint
+	existScroll := make(map[string]bool)
+	for _, v := range scroll {
+		if _, ok := existScroll[v.Id.GetUuid()]; ok {
+			continue
+		}
+
+		existScroll[v.Id.GetUuid()] = true
+		result = append(result, v)
+	}
+
+	return result, nil
 }

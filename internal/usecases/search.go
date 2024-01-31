@@ -82,7 +82,7 @@ func (u *searchUsecase) EmbeddingQuery(query string) ([]float64, error) {
 	// Construct the request body
 	requestBody, err := json.Marshal(map[string]string{
 		"input": query,
-		"model": textEmbedding3Small,
+		"model": os.Getenv("OPENAI_EMBEDDING_MODEL"),
 	})
 	if err != nil {
 		log.Fatalf("Error occurred while marshaling. %s", err)
@@ -185,8 +185,10 @@ func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entit
 	}
 
 	results := make([]entities.StringAndRelatedness, 0, len(points))
+	// best score from ascending order
 	for _, point := range points {
 		results = append(results, entities.StringAndRelatedness{
+			QdrantID:    point.Id.GetUuid(),
 			Text:        point.Payload["combined"].GetStringValue(),
 			Relatedness: float64(point.Score),
 		})
@@ -194,20 +196,38 @@ func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entit
 		fmt.Println(fmt.Sprintf("record id: %s relatedness: %f", point.Id.GetUuid(), point.Score))
 	}
 
+	// using scroll
+	// to get specific record by user prompt input
+	// must match one of the word in the query
+	// if scroll result has been existed in results, skip it
 	usingScroll, err := strconv.ParseBool(os.Getenv("QDRANT_SCROLL"))
 	if err != nil {
 		return nil, err
 	}
 
 	if usingScroll {
-		scrolls, err := u.qdrantClient.Scroll(ctx, query)
+		//scrolls, err := u.qdrantClient.Scroll(ctx, query)
+		scrolls, err := u.qdrantClient.MultiScroll(ctx, query)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, scroll := range scrolls {
+			existID := false
+			for _, result := range results {
+				if scroll.Id.GetUuid() == result.QdrantID {
+					existID = true
+					break
+				}
+			}
+
+			if existID {
+				continue
+			}
+
 			results = append(results, entities.StringAndRelatedness{
-				Text: scroll.Payload["combined"].GetStringValue(),
+				QdrantID: scroll.Id.GetUuid(),
+				Text:     scroll.Payload["combined"].GetStringValue(),
 			})
 
 			fmt.Println(fmt.Sprintf("record id: %s ", scroll.Id.GetUuid()))

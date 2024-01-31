@@ -53,6 +53,19 @@ func (r *embeddingRepo) ListEmbeddingByScope(ctx context.Context, scope string) 
 	return embeddings, nil
 }
 
+func (r *embeddingRepo) CountEmbeddingByScope(ctx context.Context, scope string) (int, error) {
+	query := `SELECT COUNT(*)
+				FROM embeddings
+					WHERE scope = $1 `
+
+	var count int
+	if err := r.dbSlave.QueryRow(ctx, query, scope).Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func (r *embeddingRepo) CreateEmbedding(ctx context.Context, embedding *repository.Embedding) error {
 	query := `INSERT INTO embeddings(scope, combined, embeddings, n_tokens, created_at)
 				VALUES($1, $2, $3, $4, NOW())`

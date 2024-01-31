@@ -22,7 +22,7 @@ func NewImportUsecase(client openai.Client, qdrantClient qdrant.QdrantClient, em
 }
 
 type ImportUsecase interface {
-	Import(ctx context.Context, filename string, offset int) error
+	Import(ctx context.Context, filename string) error
 	MigrateToQdrant(ctx context.Context) error
 	ReadCSV(filename string) ([]string, []string, error)
 }

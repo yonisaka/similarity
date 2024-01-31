@@ -17,6 +17,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 const (
@@ -25,8 +26,13 @@ const (
 
 var errGetEmbedding = errors.New("error getting embedding")
 
-func (u *importUsecase) Import(ctx context.Context, filename string, offset int) error {
+func (u *importUsecase) Import(ctx context.Context, filename string) error {
 	combined, rawVectors, err := u.ReadCSV(filename)
+	if err != nil {
+		return err
+	}
+
+	offset, err := u.embeddingRepo.CountEmbeddingByScope(ctx, filename)
 	if err != nil {
 		return err
 	}
@@ -112,12 +118,16 @@ func (u *importUsecase) ReadCSV(filename string) ([]string, []string, error) {
 		combine := ""
 		rawVector := ""
 		for i, field := range record {
+			if field == "" {
+				continue
+			}
+
 			if i == 0 {
 				combine = fmt.Sprintf("%s: %s", headers[i], field)
 				rawVector = field
 			} else {
 				combine = fmt.Sprintf("%s; %s: %s", combine, headers[i], field)
-				rawVector = fmt.Sprintf("%s; %s", rawVector, field)
+				rawVector = fmt.Sprintf("%s %s", rawVector, field)
 			}
 		}
 
@@ -132,7 +142,7 @@ func (u *importUsecase) GetEmbedding(query string) ([]float64, int, error) {
 	// Construct the request body
 	requestBody, err := json.Marshal(map[string]string{
 		"input": query,
-		"model": textEmbedding3Small,
+		"model": os.Getenv("OPENAI_EMBEDDING_MODEL"),
 	})
 	if err != nil {
 		log.Fatalf("Error occurred while marshaling. %s", err)
@@ -231,6 +241,7 @@ func (u *importUsecase) buildPoint(combined string, embedding []float32) *pb.Poi
 	// payload
 	ret := make(map[string]*pb.Value)
 	ret["combined"] = &pb.Value{Kind: &pb.Value_StringValue{StringValue: combined}}
+	ret["raw"] = &pb.Value{Kind: &pb.Value_StringValue{StringValue: getRawVector(combined)}}
 	point.Payload = ret
 	return point
 }
@@ -247,4 +258,78 @@ func convertToFloat32(embedding []float64) []float32 {
 		ret = append(ret, float32(v))
 	}
 	return ret
+}
+
+func getRawVector(combined string) string {
+	raw := strings.ReplaceAll(combined, "stock_no:", "")
+	raw = strings.ReplaceAll(raw, "id_lelang:", "")
+	raw = strings.ReplaceAll(raw, "cabang:", "")
+	raw = strings.ReplaceAll(raw, "tanggal:", "")
+	raw = strings.ReplaceAll(raw, "bulan:", "")
+	raw = strings.ReplaceAll(raw, "jalur:", "")
+	raw = strings.ReplaceAll(raw, "lot:", "")
+	raw = strings.ReplaceAll(raw, "seller_no:", "")
+	raw = strings.ReplaceAll(raw, "seller_name:", "")
+	raw = strings.ReplaceAll(raw, "seller_kategori:", "")
+	raw = strings.ReplaceAll(raw, "npwp_penjual:", "")
+	raw = strings.ReplaceAll(raw, "alamat_penjual:", "")
+	raw = strings.ReplaceAll(raw, "nomor_kontrak:", "")
+	raw = strings.ReplaceAll(raw, "nama:", "")
+	raw = strings.ReplaceAll(raw, "plat_no:", "")
+	raw = strings.ReplaceAll(raw, "pabrikan:", "")
+	raw = strings.ReplaceAll(raw, "model:", "")
+	raw = strings.ReplaceAll(raw, "type:", "")
+	raw = strings.ReplaceAll(raw, "tahun:", "")
+	raw = strings.ReplaceAll(raw, "transmisi:", "")
+	raw = strings.ReplaceAll(raw, "warna:", "")
+	raw = strings.ReplaceAll(raw, "harga_awal:", "")
+	raw = strings.ReplaceAll(raw, "harga_terbentuk:", "")
+	raw = strings.ReplaceAll(raw, "dpp:", "")
+	raw = strings.ReplaceAll(raw, "ppn_1,1%:", "")
+	raw = strings.ReplaceAll(raw, "status:", "")
+	raw = strings.ReplaceAll(raw, "segment:", "")
+	raw = strings.ReplaceAll(raw, "kapasitas_mesin:", "")
+	raw = strings.ReplaceAll(raw, "tipe_bahan_bakar:", "")
+	raw = strings.ReplaceAll(raw, "odometer:", "")
+	raw = strings.ReplaceAll(raw, " grade:", "")
+	raw = strings.ReplaceAll(raw, "no_mesin:", "")
+	raw = strings.ReplaceAll(raw, "no_rangka:", "")
+	raw = strings.ReplaceAll(raw, "status_bpkb:", "")
+	raw = strings.ReplaceAll(raw, "no_bpkb:", "")
+	raw = strings.ReplaceAll(raw, "nama_bpkb:", "")
+	raw = strings.ReplaceAll(raw, "status_stnk:", "")
+	raw = strings.ReplaceAll(raw, "no_stnk:", "")
+	raw = strings.ReplaceAll(raw, "nama_stnk:", "")
+	raw = strings.ReplaceAll(raw, "stnk_exp_date:", "")
+	raw = strings.ReplaceAll(raw, "faktur:", "")
+	raw = strings.ReplaceAll(raw, "kwitansi_blank:", "")
+	raw = strings.ReplaceAll(raw, "fc_ktp:", "")
+	raw = strings.ReplaceAll(raw, "form_a:", "")
+	raw = strings.ReplaceAll(raw, "status_keur:", "")
+	raw = strings.ReplaceAll(raw, "masa_berlaku_keur:", "")
+	raw = strings.ReplaceAll(raw, "nopol_nipl:", "")
+	raw = strings.ReplaceAll(raw, "no_pembeli:", "")
+	raw = strings.ReplaceAll(raw, "eksterior_grade:", "")
+	raw = strings.ReplaceAll(raw, "interior_grade:", "")
+	raw = strings.ReplaceAll(raw, "mesin_grade:", "")
+	raw = strings.ReplaceAll(raw, "note1:", "")
+	raw = strings.ReplaceAll(raw, "note2:", "")
+	raw = strings.ReplaceAll(raw, "rongsokan:", "")
+	raw = strings.ReplaceAll(raw, "time_closed:", "")
+	raw = strings.ReplaceAll(raw, "va_payment:", "")
+	raw = strings.ReplaceAll(raw, "nomor_telepon_penjual:", "")
+	raw = strings.ReplaceAll(raw, "nama_pembeli:", "")
+	raw = strings.ReplaceAll(raw, "alamat_pembeli:", "")
+	raw = strings.ReplaceAll(raw, "nomor_handphone:", "")
+	raw = strings.ReplaceAll(raw, "no_ktp_atau_passport:", "")
+	raw = strings.ReplaceAll(raw, "npwp_pembeli:", "")
+	raw = strings.ReplaceAll(raw, "eksterior_grade:", "")
+	raw = strings.ReplaceAll(raw, "interior_grade:", "")
+	raw = strings.ReplaceAll(raw, "mesin_grade:", "")
+	raw = strings.ReplaceAll(raw, " ; ", "")
+	raw = strings.ReplaceAll(raw, "-; ", "")
+	raw = strings.ReplaceAll(raw, "null; ", "")
+	raw = strings.ReplaceAll(raw, "; ", "")
+
+	return raw
 }

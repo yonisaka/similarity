@@ -17,5 +17,6 @@ type Embedding struct {
 
 type EmbeddingRepo interface {
 	ListEmbeddingByScope(ctx context.Context, scope string) ([]Embedding, error)
+	CountEmbeddingByScope(ctx context.Context, scope string) (int, error)
 	CreateEmbedding(ctx context.Context, embedding *Embedding) error
 }

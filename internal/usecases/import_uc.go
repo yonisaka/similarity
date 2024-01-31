@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/sashabaranov/go-openai"
 	"github.com/yonisaka/similarity/internal/entities/repository"
+	"github.com/yonisaka/similarity/pkg/logger"
 	"github.com/yonisaka/similarity/pkg/qdrant"
 )
 
@@ -11,13 +12,20 @@ type importUsecase struct {
 	client        openai.Client
 	qdrantClient  qdrant.QdrantClient
 	embeddingRepo repository.EmbeddingRepo
+	logger        logger.Logger
 }
 
-func NewImportUsecase(client openai.Client, qdrantClient qdrant.QdrantClient, embeddingRepo repository.EmbeddingRepo) ImportUsecase {
+func NewImportUsecase(
+	client openai.Client,
+	qdrantClient qdrant.QdrantClient,
+	embeddingRepo repository.EmbeddingRepo,
+	logger logger.Logger,
+) ImportUsecase {
 	return &importUsecase{
 		client:        client,
 		qdrantClient:  qdrantClient,
 		embeddingRepo: embeddingRepo,
+		logger:        logger,
 	}
 }
 

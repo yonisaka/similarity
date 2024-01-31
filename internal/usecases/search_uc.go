@@ -5,6 +5,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/yonisaka/similarity/internal/entities"
 	"github.com/yonisaka/similarity/internal/entities/repository"
+	"github.com/yonisaka/similarity/pkg/logger"
 	"github.com/yonisaka/similarity/pkg/qdrant"
 )
 
@@ -12,13 +13,15 @@ type searchUsecase struct {
 	client        openai.Client
 	qdrantClient  qdrant.QdrantClient
 	embeddingRepo repository.EmbeddingRepo
+	logger        logger.Logger
 }
 
-func NewSearchUsecase(client openai.Client, qdrantClient qdrant.QdrantClient, embeddingRepo repository.EmbeddingRepo) SearchUsecase {
+func NewSearchUsecase(client openai.Client, qdrantClient qdrant.QdrantClient, embeddingRepo repository.EmbeddingRepo, logger logger.Logger) SearchUsecase {
 	return &searchUsecase{
 		client:        client,
 		qdrantClient:  qdrantClient,
 		embeddingRepo: embeddingRepo,
+		logger:        logger,
 	}
 }
 

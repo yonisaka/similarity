@@ -37,6 +37,8 @@ func (u *importUsecase) Import(ctx context.Context, filename string) error {
 		return err
 	}
 
+	u.logger.Info(fmt.Sprintf("offset: %d", offset))
+
 	tokens := 0
 	for i, rawVector := range rawVectors {
 		if i < offset {
@@ -68,7 +70,7 @@ func (u *importUsecase) Import(ctx context.Context, filename string) error {
 
 		tokens += nTokens
 
-		log.Println(fmt.Sprintf("used tokens: %d", tokens))
+		u.logger.Info(fmt.Sprintf("usage tokens: %d", tokens))
 	}
 
 	return nil
@@ -145,7 +147,8 @@ func (u *importUsecase) GetEmbedding(query string) ([]float64, int, error) {
 		"model": os.Getenv("OPENAI_EMBEDDING_MODEL"),
 	})
 	if err != nil {
-		log.Fatalf("Error occurred while marshaling. %s", err)
+		u.logger.Warn(fmt.Sprintf("Error occurred while marshaling. %s", err))
+		return nil, 0, err
 	}
 
 	// Create an HTTP request
@@ -161,7 +164,8 @@ func (u *importUsecase) GetEmbedding(query string) ([]float64, int, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Error occurred while making HTTP request. %s", err)
+		u.logger.Warn(fmt.Sprintf("Error occurred while making HTTP request. %s", err))
+		return nil, 0, err
 	}
 	defer resp.Body.Close()
 

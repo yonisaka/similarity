@@ -20,11 +20,7 @@ import (
 
 const (
 	embeddingURL         = "https://api.openai.com/v1/embeddings"
-	openaiModel          = "gpt-3.5-turbo"
-	textEmbeddingAda     = "text-embedding-ada-002"
-	textEmbedding3Small  = "text-embedding-3-small"
 	roleUser             = "user"
-	filepath             = "../data/sample_data.json"
 	similarityQdrant     = "qdrant"
 	similarityPostgresql = "postgresql"
 	topN                 = 5
@@ -193,7 +189,7 @@ func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entit
 			Relatedness: float64(point.Score),
 		})
 
-		fmt.Println(fmt.Sprintf("record id: %s relatedness: %f", point.Id.GetUuid(), point.Score))
+		u.logger.Info(fmt.Sprintf("record id: %s relatedness: %f", point.Id.GetUuid(), point.Score))
 	}
 
 	// using scroll
@@ -230,7 +226,7 @@ func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entit
 				Text:     scroll.Payload["combined"].GetStringValue(),
 			})
 
-			fmt.Println(fmt.Sprintf("record id: %s ", scroll.Id.GetUuid()))
+			u.logger.Info(fmt.Sprintf("record id: %s with indexing search", scroll.Id.GetUuid()))
 		}
 	}
 
@@ -264,7 +260,7 @@ func (u *searchUsecase) Ask(ctx context.Context, query string, records []entitie
 	message := u.QueryMessage(query, records, tokenBudget)
 
 	resp, err := u.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openaiModel, // Adjust the model as needed
+		Model: os.Getenv("OPENAI_GPT_MODEL"), // Adjust the model as needed
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    roleUser,

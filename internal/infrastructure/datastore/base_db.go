@@ -50,7 +50,7 @@ func getConnString(connType string) string {
 		portType = "5432"
 	}
 
-	if os.Getenv("APP_ENV") == "test" || os.Getenv("APP_ENV") == "" {
+	if os.Getenv("APP_ENV") == "test" || os.Getenv("APP_ENV") == "development" || os.Getenv("APP_ENV") == "" {
 		return fmt.Sprintf("postgres://test:test@localhost:%s/test?sslmode=disable", portType)
 	}
 

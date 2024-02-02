@@ -265,6 +265,13 @@ func convertToFloat32(embedding []float64) []float32 {
 }
 
 func getRawVector(combined string) string {
+	// note value may contain duplicate words to another sample data
+	// and will reduce the accuracy of the embedding
+	indexNote1 := strings.Index(combined, "note1:")
+	if indexNote1 > 0 {
+		combined = combined[:indexNote1]
+	}
+
 	raw := strings.ReplaceAll(combined, "stock_no:", "")
 	raw = strings.ReplaceAll(raw, "id_lelang:", "")
 	raw = strings.ReplaceAll(raw, "cabang:", "")

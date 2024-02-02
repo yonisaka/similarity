@@ -5,3 +5,6 @@ qdrant_storage
 
 # test credentials
 cmd/main_test.go
+
+# env
+.env

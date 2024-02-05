@@ -38,3 +38,13 @@ func TestMigrateToQdrant(t *testing.T) {
 		logger.Errorw("error migrating", "err", err)
 	}
 }
+
+func TestMigrateToElasticsearch(t *testing.T) {
+	importUsecase := di.GetImportUsecase()
+
+	ctx := context.Background()
+	err := importUsecase.MigrateToElasticsearch(ctx)
+	if err != nil {
+		logger.Errorw("error migrating", "err", err)
+	}
+}

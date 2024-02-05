@@ -8,6 +8,7 @@ func GetSearchUsecase() usecases.SearchUsecase {
 		GetOpenAIClient(),
 		GetQdrantClient(),
 		GetEmbeddingRepo(),
+		GetESClient(),
 		GetLogger(),
 	)
 }
@@ -18,6 +19,7 @@ func GetImportUsecase() usecases.ImportUsecase {
 		GetOpenAIClient(),
 		GetQdrantClient(),
 		GetEmbeddingRepo(),
+		GetESClient(),
 		GetLogger(),
 	)
 }

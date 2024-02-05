@@ -23,6 +23,7 @@ const (
 	roleUser             = "user"
 	similarityQdrant     = "qdrant"
 	similarityPostgresql = "postgresql"
+	similarityElastic    = "elastic"
 	topN                 = 5
 	tokenBudget          = 1000
 	introduction         = "Use the below sample data to answer the subsequent question. If the answer cannot be found in the data source, write \"I could not find an answer.\""
@@ -44,6 +45,11 @@ func (u *searchUsecase) Search(ctx context.Context, query string) (string, error
 		}
 
 		recordsAndRelatedness, err = u.StringsRankedByRelatedness(query, records, topN)
+		if err != nil {
+			return "", err
+		}
+	} else if os.Getenv("SIMILARITY_METHOD") == similarityElastic {
+		recordsAndRelatedness, err = u.ElasticSearch(ctx, query)
 		if err != nil {
 			return "", err
 		}
@@ -233,6 +239,69 @@ func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entit
 	return results, nil
 }
 
+func (u *searchUsecase) ElasticSearch(ctx context.Context, query string) ([]entities.StringAndRelatedness, error) {
+	results := make([]entities.StringAndRelatedness, 0)
+
+	// using vector search
+	//to get specific record by user prompt input
+	queryEmbedding, err := u.EmbeddingQuery(query)
+	if err != nil {
+		return nil, err
+	}
+
+	//esResponse, err := u.esClient.VectorSearch(queryEmbedding)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//if esResponse == nil {
+	//	return nil, errors.New("no result found")
+	//}
+	//
+	////// best score from ascending order
+	//for _, hit := range esResponse.Hits.Hits {
+	//	results = append(results, entities.StringAndRelatedness{
+	//		QdrantID:    hit.ID,
+	//		Text:        hit.Source.Combined,
+	//		Relatedness: hit.Score,
+	//	})
+	//
+	//	u.logger.Info(fmt.Sprintf("record id: %s relatedness: %f", hit.ID, hit.Score))
+	//}
+
+	// using hybrid search
+	// to get specific record by user prompt input
+	// must match one of the word in the query
+	// if scroll result has been existed in results, skip it
+	hybridResponse, err := u.esClient.HybridSearch(queryEmbedding, query)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, hit := range hybridResponse.Hits.Hits {
+		existID := false
+		for _, result := range results {
+			if hit.ID == result.QdrantID {
+				existID = true
+				break
+			}
+		}
+
+		if existID {
+			continue
+		}
+
+		results = append(results, entities.StringAndRelatedness{
+			QdrantID: hit.ID,
+			Text:     hit.Source.Combined,
+		})
+
+		u.logger.Info(fmt.Sprintf("record id: %s with hybrid search", hit.ID))
+	}
+
+	return results, nil
+}
+
 // NumTokens approximates the number of tokens in a string.
 func (u *searchUsecase) NumTokens(text string) int {
 	// Simple tokenization by splitting on spaces and punctuation
@@ -257,7 +326,10 @@ func (u *searchUsecase) QueryMessage(query string, records []entities.StringAndR
 
 // Ask answers a query using GPT and a slice of relevant texts and embeddings.
 func (u *searchUsecase) Ask(ctx context.Context, query string, records []entities.StringAndRelatedness, tokenBudget int) (string, error) {
-	message := u.QueryMessage(query, records, tokenBudget)
+	message := query
+	if len(records) > 0 {
+		message = u.QueryMessage(query, records, tokenBudget)
+	}
 
 	resp, err := u.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: os.Getenv("OPENAI_GPT_MODEL"), // Adjust the model as needed

@@ -250,6 +250,38 @@ func (u *importUsecase) buildPoint(combined string, embedding []float32) *pb.Poi
 	return point
 }
 
+func (u *importUsecase) MigrateToElasticsearch(ctx context.Context) error {
+	records, err := u.embeddingRepo.ListEmbeddingByScope(ctx, "sample_lelang.csv")
+	if err != nil {
+		return err
+	}
+	// Set the index
+	u.esClient.SetIndex("research")
+
+	// Delete the index
+	if err := u.esClient.DeleteIndex(); err != nil {
+		return err
+	}
+
+	// Create the index
+	if err := u.esClient.CreateIndex(); err != nil {
+		return err
+	}
+
+	for _, record := range records {
+		document := map[string]interface{}{
+			"combined":  record.Combined,
+			"raw":       getRawVector(record.Combined),
+			"embedding": record.Embedding,
+		}
+
+		if err := u.esClient.IndexDocument(document); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 func md5str(s string) string {
 	h := md5.New()
 	h.Write([]byte(s))

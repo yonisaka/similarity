@@ -3,6 +3,7 @@ package di
 import (
 	"fmt"
 	"github.com/sashabaranov/go-openai"
+	"github.com/yonisaka/similarity/pkg/elasticsearch"
 	"github.com/yonisaka/similarity/pkg/qdrant"
 	"os"
 	"strconv"
@@ -49,4 +50,8 @@ func GetQdrantClient() qdrant.QdrantClient {
 		uint64(hnswM),
 		uint64(hnswEFConstruct),
 	)
+}
+
+func GetESClient() elasticsearch.ESClient {
+	return *elasticsearch.NewElasticsearch()
 }

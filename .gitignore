@@ -1,6 +1,7 @@
 # development data
 development/primary/data
 development/replica/data
+development/elasticsearch
 qdrant_storage
 
 # test credentials

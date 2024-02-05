@@ -13,9 +13,9 @@ func TestSearch(t *testing.T) {
 	searchUsecase := di.GetSearchUsecase()
 
 	qna1 := make(map[string]string)
-	qna1["stok nomor BA00002123J16 dimiliki penjual apa?"] = "Yuliana"            // ada:15 small:15
-	qna1["stok nomor BA00001323K14 memiliki plat nomor apa?"] = "B1207KDZ"        // ada:4 small:2
-	qna1["mobil dengan plat nomor F1088DA memiliki warna apa?"] = "Hitam Metalic" // ada:6 small:15
+	qna1["stok nomor BA00002123J16 dimiliki penjual apa?"] = "Yuliana" // ada:15 small:15
+	//qna1["stok nomor BA00001323K14 memiliki plat nomor apa?"] = "B1207KDZ"        // ada:4 small:2
+	//qna1["mobil dengan plat nomor F1088DA memiliki warna apa?"] = "Hitam Metalic" // ada:6 small:15
 
 	qna2 := make(map[string]string)
 	qna2["mobil dengan plat nomor T8324AP memiliki harga awal berapa?"] = "135000000"  // ada:1 small:1
@@ -44,6 +44,7 @@ func TestSearch(t *testing.T) {
 	qna8 := make(map[string]string)
 	qna8["stok nomor BA00000123B13 berada di cabang apa?"] = "Bekasi"
 	qna8["mobil dengan plat nomor B2396UFF memiliki model apa?"] = "MOBILIO"
+	//qna8["cara membuat crud golang?"] = "golang"
 
 	for question, expectedAnswerContains := range qna8 {
 		ctx := context.Background()

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/sashabaranov/go-openai"
-	"github.com/yonisaka/similarity/internal/entities"
 	"github.com/yonisaka/similarity/internal/entities/repository"
+	"github.com/yonisaka/similarity/internal/types"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -30,7 +30,7 @@ const (
 )
 
 func (u *searchUsecase) Search(ctx context.Context, query string) (string, error) {
-	var recordsAndRelatedness []entities.StringAndRelatedness
+	var recordsAndRelatedness []types.StringAndRelatedness
 	var err error
 
 	if os.Getenv("SIMILARITY_METHOD") == similarityQdrant {
@@ -114,7 +114,7 @@ func (u *searchUsecase) EmbeddingQuery(query string) ([]float64, error) {
 	}
 
 	// Unmarshal the response into the EmbeddingResponse struct
-	var embeddingResponse *entities.EmbeddingResponse
+	var embeddingResponse *types.EmbeddingResponse
 	if err := json.Unmarshal(body, &embeddingResponse); err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (u *searchUsecase) EmbeddingQuery(query string) ([]float64, error) {
 		return embeddingResponse.Data[0].Embedding, nil
 	}
 
-	var errorResponse *entities.ErrorResponse
+	var errorResponse *types.ErrorResponse
 	if err := json.Unmarshal(body, &errorResponse); err != nil {
 		return nil, err
 	}
@@ -137,19 +137,19 @@ func (u *searchUsecase) EmbeddingQuery(query string) ([]float64, error) {
 }
 
 // StringsRankedByRelatedness finds strings ranked by their relatedness to a query.
-func (u *searchUsecase) StringsRankedByRelatedness(query string, records []repository.Embedding, topN int) ([]entities.StringAndRelatedness, error) {
+func (u *searchUsecase) StringsRankedByRelatedness(query string, records []repository.Embedding, topN int) ([]types.StringAndRelatedness, error) {
 	queryEmbedding, err := u.EmbeddingQuery(query)
 	if err != nil {
 		return nil, err
 	}
 
-	results := make([]entities.StringAndRelatedness, 0, len(records))
+	results := make([]types.StringAndRelatedness, 0, len(records))
 	for _, record := range records {
 		relatedness, err := cosineSimilarity(queryEmbedding, record.Embedding)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, entities.StringAndRelatedness{
+		results = append(results, types.StringAndRelatedness{
 			ID:          record.ID,
 			Text:        record.Combined,
 			Relatedness: relatedness,
@@ -171,7 +171,7 @@ func (u *searchUsecase) StringsRankedByRelatedness(query string, records []repos
 	return results[:topN], nil
 }
 
-func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entities.StringAndRelatedness, error) {
+func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]types.StringAndRelatedness, error) {
 	queryEmbedding, err := u.EmbeddingQuery(query)
 	if err != nil {
 		return nil, err
@@ -186,10 +186,10 @@ func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entit
 		return nil, errors.New("no result found")
 	}
 
-	results := make([]entities.StringAndRelatedness, 0, len(points))
+	results := make([]types.StringAndRelatedness, 0, len(points))
 	// best score from ascending order
 	for _, point := range points {
-		results = append(results, entities.StringAndRelatedness{
+		results = append(results, types.StringAndRelatedness{
 			QdrantID:    point.Id.GetUuid(),
 			Text:        point.Payload["combined"].GetStringValue(),
 			Relatedness: float64(point.Score),
@@ -227,7 +227,7 @@ func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entit
 				continue
 			}
 
-			results = append(results, entities.StringAndRelatedness{
+			results = append(results, types.StringAndRelatedness{
 				QdrantID: scroll.Id.GetUuid(),
 				Text:     scroll.Payload["combined"].GetStringValue(),
 			})
@@ -239,8 +239,8 @@ func (u *searchUsecase) QdrantSearch(ctx context.Context, query string) ([]entit
 	return results, nil
 }
 
-func (u *searchUsecase) ElasticSearch(ctx context.Context, query string) ([]entities.StringAndRelatedness, error) {
-	results := make([]entities.StringAndRelatedness, 0)
+func (u *searchUsecase) ElasticSearch(ctx context.Context, query string) ([]types.StringAndRelatedness, error) {
+	results := make([]types.StringAndRelatedness, 0)
 
 	// using vector search
 	//to get specific record by user prompt input
@@ -291,12 +291,12 @@ func (u *searchUsecase) ElasticSearch(ctx context.Context, query string) ([]enti
 			continue
 		}
 
-		results = append(results, entities.StringAndRelatedness{
+		results = append(results, types.StringAndRelatedness{
 			QdrantID: hit.ID,
 			Text:     hit.Source.Combined,
 		})
 
-		u.logger.Info(fmt.Sprintf("record id: %s with hybrid search", hit.ID))
+		u.logger.Info(fmt.Sprintf("record id: %s relatedness: %f", hit.ID, hit.Score))
 	}
 
 	return results, nil
@@ -310,7 +310,7 @@ func (u *searchUsecase) NumTokens(text string) int {
 }
 
 // QueryMessage builds a message with relevant texts from the data.
-func (u *searchUsecase) QueryMessage(query string, records []entities.StringAndRelatedness, tokenBudget int) string {
+func (u *searchUsecase) QueryMessage(query string, records []types.StringAndRelatedness, tokenBudget int) string {
 	question := "\n\nQuestion: " + query
 	message := introduction
 	for _, record := range records {
@@ -325,7 +325,7 @@ func (u *searchUsecase) QueryMessage(query string, records []entities.StringAndR
 }
 
 // Ask answers a query using GPT and a slice of relevant texts and embeddings.
-func (u *searchUsecase) Ask(ctx context.Context, query string, records []entities.StringAndRelatedness, tokenBudget int) (string, error) {
+func (u *searchUsecase) Ask(ctx context.Context, query string, records []types.StringAndRelatedness, tokenBudget int) (string, error) {
 	message := query
 	if len(records) > 0 {
 		message = u.QueryMessage(query, records, tokenBudget)

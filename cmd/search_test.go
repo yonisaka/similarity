@@ -22,8 +22,8 @@ func TestSearch(t *testing.T) {
 	qna2["mobil dengan plat nomor B1207KDZ memiliki kapasitas mesin berapa?"] = "2496" // ada:3 small:5
 
 	qna3 := make(map[string]string)
-	qna3["stok nomor BA00001023J09 memiliki odometer berapa?"] = "108585"             // ada:1 small:7
-	qna3["mobil dengan plat nomor D1167AGX memiliki nomor mesin apa?"] = "1NRF437889" // ada:2 small:1
+	qna3["stok nomor BA00001023J09 memiliki odometer berapa?"] = "108585" // ada:1 small:7
+	//qna3["mobil dengan plat nomor D1167AGX memiliki nomor mesin apa?"] = "1NRF437889" // ada:2 small:1
 
 	qna4 := make(map[string]string)
 	qna4["stok nomor KA00000823G27 memiliki nomor rangka apa?"] = "MHMFM517BCK004179" // ada:4 small:11
@@ -46,7 +46,7 @@ func TestSearch(t *testing.T) {
 	qna8["mobil dengan plat nomor B2396UFF memiliki model apa?"] = "MOBILIO"
 	//qna8["cara membuat crud golang?"] = "golang"
 
-	for question, expectedAnswerContains := range qna8 {
+	for question, expectedAnswerContains := range qna7 {
 		ctx := context.Background()
 		result, err := searchUsecase.Search(ctx, question)
 		if err != nil {

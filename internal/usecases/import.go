@@ -10,11 +10,12 @@ import (
 	"errors"
 	"fmt"
 	pb "github.com/qdrant/go-client/qdrant"
-	"github.com/yonisaka/similarity/internal/entities"
 	"github.com/yonisaka/similarity/internal/entities/repository"
+	"github.com/yonisaka/similarity/internal/types"
 	"io"
 	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strings"
@@ -26,8 +27,17 @@ const (
 
 var errGetEmbedding = errors.New("error getting embedding")
 
-func (u *importUsecase) Import(ctx context.Context, filename string) error {
-	combined, rawVectors, err := u.ReadCSV(filename)
+func (u *importUsecase) Import(ctx context.Context, fileHeader *multipart.FileHeader, filename string) error {
+	var combined []string
+	var rawVectors []string
+	var err error
+
+	if fileHeader != nil {
+		combined, rawVectors, err = u.ReadUploadedCSV(fileHeader)
+		filename = fileHeader.Filename
+	} else {
+		combined, rawVectors, err = u.ReadCSV(filename)
+	}
 	if err != nil {
 		return err
 	}
@@ -40,7 +50,12 @@ func (u *importUsecase) Import(ctx context.Context, filename string) error {
 	u.logger.Info(fmt.Sprintf("offset: %d", offset))
 
 	tokens := 0
+	countRequest := 0
 	for i, rawVector := range rawVectors {
+		if countRequest > 1 {
+			break
+		}
+
 		if i < offset {
 			continue
 		}
@@ -57,6 +72,7 @@ func (u *importUsecase) Import(ctx context.Context, filename string) error {
 			}
 			return err
 		}
+		countRequest += 1
 
 		// Save the embedding to the database
 		if err := u.embeddingRepo.CreateEmbedding(ctx, &repository.Embedding{
@@ -74,6 +90,69 @@ func (u *importUsecase) Import(ctx context.Context, filename string) error {
 	}
 
 	return nil
+}
+
+func (u *importUsecase) ReadUploadedCSV(fileHeader *multipart.FileHeader) ([]string, []string, error) {
+	// Open the uploaded file
+	csvFile, err := fileHeader.Open()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer csvFile.Close()
+
+	// Parse the CSV file
+	reader := csv.NewReader(csvFile)
+	reader.Comma = ';'
+	reader.LazyQuotes = true
+
+	// Assuming the first line is headers
+	headers, err := reader.Read()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var records [][]string
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			if errors.Is(err, csv.ErrFieldCount) {
+				log.Println("Warning: Skipping a malformed line")
+				continue
+			} else if err == io.EOF {
+				// End of file is reached
+				break
+			}
+
+			break
+		}
+
+		records = append(records, record)
+	}
+
+	var combined []string
+	var rawVectors []string
+	for _, record := range records {
+		combine := ""
+		rawVector := ""
+		for i, field := range record {
+			if field == "" {
+				continue
+			}
+
+			if i == 0 {
+				combine = fmt.Sprintf("%s: %s", headers[i], field)
+				rawVector = field
+			} else {
+				combine = fmt.Sprintf("%s; %s: %s", combine, headers[i], field)
+				rawVector = fmt.Sprintf("%s %s", rawVector, field)
+			}
+		}
+
+		combined = append(combined, combine)
+		rawVectors = append(rawVectors, rawVector)
+	}
+
+	return combined, rawVectors, nil
 }
 
 func (u *importUsecase) ReadCSV(filename string) ([]string, []string, error) {
@@ -176,7 +255,7 @@ func (u *importUsecase) GetEmbedding(query string) ([]float64, int, error) {
 	}
 
 	// Unmarshal the response into the EmbeddingResponse struct
-	var embeddingResponse *entities.EmbeddingResponse
+	var embeddingResponse *types.EmbeddingResponse
 	if err := json.Unmarshal(body, &embeddingResponse); err != nil {
 		return nil, 0, err
 	}
@@ -186,7 +265,7 @@ func (u *importUsecase) GetEmbedding(query string) ([]float64, int, error) {
 		return embeddingResponse.Data[0].Embedding, embeddingResponse.Usage.PromptTokens, nil
 	}
 
-	var errorResponse *entities.ErrorResponse
+	var errorResponse *types.ErrorResponse
 	if err := json.Unmarshal(body, &errorResponse); err != nil {
 		return nil, 0, err
 	}

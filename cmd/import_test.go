@@ -18,7 +18,7 @@ func TestImport(t *testing.T) {
 			break
 		}
 
-		err := importUsecase.Import(ctx, "sample_lelang.csv")
+		err := importUsecase.Import(ctx, nil, "sample_lelang.csv")
 		if err != nil {
 			logger.Errorw("error importing", "err", err)
 		}

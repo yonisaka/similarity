@@ -3,6 +3,7 @@ package httphandler
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"github.com/yonisaka/similarity/internal/types"
 	"github.com/yonisaka/similarity/internal/usecases"
 )
 
@@ -22,11 +23,22 @@ type SearchHandler interface {
 
 func (h *searchHandler) Search(c *fiber.Ctx) error {
 	prompt := c.FormValue("prompt")
-	result, err := h.searchUsecase.Search(c.Context(), prompt)
+	answer, err := h.searchUsecase.Search(c.Context(), prompt)
 	if err != nil {
 		log.Warn(err)
 		return c.JSON(fiber.ErrInternalServerError)
 	}
 
-	return c.JSON(result)
+	result := types.SearchResponse{
+		Question: prompt,
+		Answer:   answer,
+	}
+
+	return c.JSON(
+		types.Http{
+			Code:    fiber.StatusOK,
+			Message: "Success",
+			Data:    result,
+		},
+	)
 }

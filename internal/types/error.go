@@ -1,4 +1,4 @@
-package entities
+package types
 
 // ErrorResponse represents the expected structure of the response from your embedding API
 type ErrorResponse struct {

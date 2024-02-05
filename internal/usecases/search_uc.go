@@ -3,8 +3,8 @@ package usecases
 import (
 	"context"
 	"github.com/sashabaranov/go-openai"
-	"github.com/yonisaka/similarity/internal/entities"
 	"github.com/yonisaka/similarity/internal/entities/repository"
+	"github.com/yonisaka/similarity/internal/types"
 	"github.com/yonisaka/similarity/pkg/elasticsearch"
 	"github.com/yonisaka/similarity/pkg/logger"
 	"github.com/yonisaka/similarity/pkg/qdrant"
@@ -30,10 +30,10 @@ func NewSearchUsecase(client openai.Client, qdrantClient qdrant.QdrantClient, em
 
 type SearchUsecase interface {
 	Search(ctx context.Context, query string) (string, error)
-	StringsRankedByRelatedness(query string, records []repository.Embedding, topN int) ([]entities.StringAndRelatedness, error)
+	StringsRankedByRelatedness(query string, records []repository.Embedding, topN int) ([]types.StringAndRelatedness, error)
 	EmbeddingQuery(query string) ([]float64, error)
 	NumTokens(text string) int
-	QueryMessage(query string, records []entities.StringAndRelatedness, tokenBudget int) string
-	Ask(ctx context.Context, query string, records []entities.StringAndRelatedness, tokenBudget int) (string, error)
+	QueryMessage(query string, records []types.StringAndRelatedness, tokenBudget int) string
+	Ask(ctx context.Context, query string, records []types.StringAndRelatedness, tokenBudget int) (string, error)
 	LoadJSONDataSources(path string) ([]repository.Embedding, error)
 }

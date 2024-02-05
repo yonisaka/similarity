@@ -3,6 +3,7 @@ package httphandler
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"github.com/yonisaka/similarity/internal/types"
 	"github.com/yonisaka/similarity/internal/usecases"
 )
 
@@ -21,16 +22,19 @@ type ImportHandler interface {
 }
 
 func (h *importHandler) Import(c *fiber.Ctx) error {
-	file, err := c.FormFile("file")
+	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		return fiber.ErrBadRequest
+		return c.JSON(fiber.ErrBadRequest)
 	}
 
-	err = h.importUsecase.Import(c.Context(), file.Filename)
+	err = h.importUsecase.Import(c.Context(), fileHeader, "")
 	if err != nil {
 		log.Warn(err)
-		return fiber.ErrInternalServerError
+		return c.JSON(fiber.ErrInternalServerError)
 	}
 
-	return c.SendStatus(fiber.StatusCreated)
+	return c.JSON(types.Http{
+		Code:    fiber.StatusCreated,
+		Message: "Success importing",
+	})
 }

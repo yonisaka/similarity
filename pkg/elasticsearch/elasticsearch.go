@@ -3,8 +3,10 @@ package elasticsearch
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/elastic/go-elasticsearch/v8"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -46,7 +48,7 @@ type ESSearchResponse struct {
 func NewElasticsearch() *ESClient {
 	cfg := elasticsearch.Config{
 		Addresses: []string{
-			"http://localhost:9200",
+			fmt.Sprintf("http://%s:%s", os.Getenv("ELASTICSEARCH_HOST"), os.Getenv("ELASTICSEARCH_PORT")),
 		},
 	}
 	es, err := elasticsearch.NewClient(cfg)

@@ -1,4 +1,4 @@
-package entities
+package types
 
 // Record represents a record in the data source.
 type Record struct {

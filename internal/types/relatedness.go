@@ -1,4 +1,4 @@
-package entities
+package types
 
 // StringAndRelatedness holds a text and its relatedness score.
 type StringAndRelatedness struct {

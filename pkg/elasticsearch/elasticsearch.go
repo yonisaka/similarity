@@ -48,7 +48,7 @@ type ESSearchResponse struct {
 func NewElasticsearch() *ESClient {
 	cfg := elasticsearch.Config{
 		Addresses: []string{
-			fmt.Sprintf("http://%s:%s", os.Getenv("ELASTICSEARCH_HOST"), os.Getenv("ELASTICSEARCH_PORT")),
+			fmt.Sprintf("%s:%s", os.Getenv("ELASTICSEARCH_HOST"), os.Getenv("ELASTICSEARCH_PORT")),
 		},
 	}
 	es, err := elasticsearch.NewClient(cfg)
